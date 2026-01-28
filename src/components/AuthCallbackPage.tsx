@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { authService } from "../services";
 
 const AuthCallbackPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { handleSocialLoginCallback } = useAuth();
+  const { refreshSession } = useAuth();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -22,29 +21,14 @@ const AuthCallbackPage = () => {
       // Check if we have a token in URL (legacy flow)
       const token = searchParams.get("token");
       if (token) {
-        try {
-          await handleSocialLoginCallback(token);
-          navigate("/", { state: { showLoginToast: true } });
-          return;
-        } catch {
-          setError("Failed to complete login");
-          setTimeout(() => navigate("/login"), 3000);
-          return;
-        }
+        localStorage.setItem("accessToken", token);
       }
 
       // Cookie-based flow: session cookie is set by backend
-      // Fetch user info to verify authentication and update context
+      // Refresh session to get user data from /api/auth/me
       try {
-        const response = await authService.me();
-        if (response?.user) {
-          // Update auth context with user data
-          await handleSocialLoginCallback(""); // Empty token, will fetch from /me
-          navigate("/", { state: { showLoginToast: true } });
-        } else {
-          setError("Authentication failed");
-          setTimeout(() => navigate("/login"), 3000);
-        }
+        await refreshSession();
+        navigate("/", { state: { showLoginToast: true } });
       } catch {
         setError("Failed to verify authentication");
         setTimeout(() => navigate("/login"), 3000);
@@ -52,7 +36,7 @@ const AuthCallbackPage = () => {
     };
 
     processCallback();
-  }, [searchParams, handleSocialLoginCallback, navigate]);
+  }, [searchParams, refreshSession, navigate]);
 
   if (error) {
     return (
